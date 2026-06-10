@@ -1,18 +1,27 @@
-import os, argparse
+import os, argparse, time
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from prompts import system_prompt
-from config import MAX_ITERATIONS
+from config import MAX_ITERATIONS, MAX_ATTEMPTS, COOLDOWN
 from call_function import available_functions, call_function
 load_dotenv()
 
 def generate_content(client, messages):
     config = types.GenerateContentConfig(system_instruction=system_prompt, temperature=0, tools=[available_functions])
-    return client.models.generate_content(
-        model="gemini-2.5-flash", contents=messages, config=config,
-    )
-
+    for _ in range(MAX_ATTEMPTS):
+        try:
+            return client.models.generate_content(
+                model="gemini-2.5-flash", contents=messages, config=config,
+            )
+        except Exception as e:
+            if "429" in str(e) or "503" in str(e):
+                print(f"Rate limited, waiting {COOLDOWN or 60}s...")
+                time.sleep(COOLDOWN or 60)
+            else:
+                raise
+    else:
+        raise RuntimeError(f"Failed after {MAX_ATTEMPTS}")
 def main():
     parser = argparse.ArgumentParser(description="Chatbot")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
