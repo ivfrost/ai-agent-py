@@ -28,6 +28,9 @@ def main():
     client = genai.Client(api_key=api_key)
     for _ in range(MAX_ITERATIONS or 20):
         response = generate_content(client, messages)
+        if response.candidates:
+            for candidate in response.candidates:
+                messages.append(candidate.content)
         usageMeta = response.usage_metadata
         if not usageMeta:
             raise RuntimeError("API request failed. Try again later")
@@ -54,9 +57,13 @@ def main():
                 func_results.append(function_call_result.parts[0])
                 if args.verbose:
                     print(f"-> {function_response.response}")
-
+            messages.append(types.Content(role="user", parts=func_results))
         else:
             print(response.text)
+            break
+    else:
+        print(f"The agent reached the limit of iterations without producing a final response")
+        exit(1)
 
 
 if __name__ == "__main__":
