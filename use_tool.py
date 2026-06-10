@@ -26,9 +26,9 @@ tool_map: dict[str, Callable[..., str]] = {
 
 def use_tool(work_dir: str, tool_use: ToolUseBlock, verbose: bool = False) -> str:
     if verbose:
-        print(f"Calling function: {tool_use.name}({tool_use.input})")
+        print(f"Using tool: {tool_use.name}({tool_use.input})")
     else:
-        print(f"Calling function: {tool_use.name}")
+        print(f"Using tool: {tool_use.name}")
     
     tool_name = tool_use.name or ""
     
