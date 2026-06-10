@@ -1,74 +1,64 @@
 import os, argparse, time
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
+from anthropic import Anthropic
 from prompts import system_prompt
-from config import MAX_ITERATIONS, MAX_ATTEMPTS, COOLDOWN
-from call_function import available_functions, call_function
+from config import MAX_ITERATIONS, MAX_TOKENS, TEMPERATURE
+from use_tool import available_tools, use_tool
 load_dotenv()
 
 def generate_content(client, messages):
-    config = types.GenerateContentConfig(system_instruction=system_prompt, temperature=0, tools=[available_functions])
-    for _ in range(MAX_ATTEMPTS):
-        try:
-            return client.models.generate_content(
-                model="gemini-2.5-flash", contents=messages, config=config,
-            )
-        except Exception as e:
-            if "429" in str(e) or "503" in str(e):
-                print(f"Rate limited, waiting {COOLDOWN or 60}s...")
-                time.sleep(COOLDOWN or 60)
-            else:
-                raise
-    else:
-        raise RuntimeError(f"Failed after {MAX_ATTEMPTS}")
+    config = {
+        "model": "claude-haiku-4-5",
+        "max_tokens": MAX_TOKENS or 1024,
+        "system": system_prompt,
+        "temperature": TEMPERATURE or 0,
+        "tools": available_tools,
+    }
+    return client.messages.create(**config, messages=messages)
 def main():
     parser = argparse.ArgumentParser(description="Chatbot")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument("user_prompt", type=str, help="User prompt")
     args = parser.parse_args()
-    api_key = os.environ.get("GEMINI_API_KEY")
-    messages: list[types.Content] = [
-            types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
+    api_key = os.environ.get("CLAUDE_API_KEY")
+    messages: list[dict] = [{"role": "user", "content": args.user_prompt}]
 
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set")
+        raise RuntimeError("CLAUDE_API_KEY is not set")
     
-    client = genai.Client(api_key=api_key)
+    client = Anthropic(api_key=api_key)
+
     for _ in range(MAX_ITERATIONS or 20):
         response = generate_content(client, messages)
-        if response.candidates:
-            for candidate in response.candidates:
-                messages.append(candidate.content)
-        usageMeta = response.usage_metadata
-        if not usageMeta:
+        if response.content:
+            messages.append({"role": "assistant", "content": response.content})
+        usage = response.usage
+        if not usage:
             raise RuntimeError("API request failed. Try again later")
         
-        promptTokens = usageMeta.prompt_token_count
-        responseTokens = usageMeta.candidates_token_count
+        promptTokens = usage.input_tokens
+        responseTokens = usage.output_tokens
         if args.verbose:
             print("Prompt tokens: " + str(promptTokens)) 
             print("Response tokens: " + str(responseTokens)) 
             print()
             print("User prompt: " + str(args.user_prompt))
             print()
-        func_results = []
-        if response.function_calls:
-            for func in response.function_calls:
-                function_call_result = call_function(func, args.verbose);
-                if not function_call_result.parts:
-                    raise ValueError("Missing .parts list on function_call result")
-                function_response = function_call_result.parts[0].function_response
-                if not function_response:
-                    raise ValueError("Missing function_response on parts' first index")
-                if not function_response.response:
-                    raise ValueError("Missing result of function call")
-                func_results.append(function_call_result.parts[0])
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+        if tool_uses:
+            tool_results = []
+            for tool in tool_uses:
+                result = use_tool(tool, args.verbose);
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tool.id,
+                    "content": result
+                })
                 if args.verbose:
-                    print(f"-> {function_response.response}")
-            messages.append(types.Content(role="user", parts=func_results))
+                    print(f"-> {result}")
+            messages.append({"role": "user", "content": tool_results})
         else:
-            print(response.text)
+            print(next(b.text for b in response.content if b.type == "text"))
             break
     else:
         print(f"The agent reached the limit of iterations without producing a final response")

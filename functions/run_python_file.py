@@ -1,26 +1,28 @@
 import os
 import subprocess
 from sys import stderr, stdout
-from google.genai import types
 
-schema_run_python_file = types.FunctionDeclaration(
-  name="run_python_file",
-  description="Execute the code of a valid Python file in the Python interpreter",
-  parameters=types.Schema(
-    type=types.Type.OBJECT,
-    properties={
-      "file_path": types.Schema(
-        type=types.Type.STRING,
-        description="Path of the Python file which contents are to be executed, relative to the working directory"
-      ),
-      "args": types.Schema(
-          type=types.Type.ARRAY,
-          description="Optional list of arguments to pass to the Python file when executing it",
-          items=types.Schema(type=types.Type.STRING)
-      )
+schema_run_python_file = {
+    "name": "run_python_file",
+    "description": "Execute the code of a valid Python file in the Python interpreter",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "file_path": {
+                "type": "string",
+                "description": "Path of the Python file which contents are to be executed, relative to the working directory"
+            },
+            "args": {
+                "type": "array",
+                "description": "Optional list of arguments to pass to the Python file when executing it",
+                "items": {
+                    "type": "string"
+                }
+            }
+        }
     }
-  )
-)
+}
+
 
 def run_python_file(work_dir: str, file_path: str, args: list[str] | None = None) -> str:
   try:
@@ -32,17 +34,20 @@ def run_python_file(work_dir: str, file_path: str, args: list[str] | None = None
     valid_path = os.path.commonpath([work_dir_abs, full_path]) == work_dir_abs
 
     if not valid_path:
-      raise ValueError(f'Error: Cannot execute "{file_path}" as it is outside the permitted working directory')
+      raise ValueError(
+          f'Error: Cannot execute "{file_path}" as it is outside the permitted working directory')
     if not os.path.isfile(full_path):
-      raise ValueError(f'Error: "{file_path}" does not exist or is not a regular file')
+      raise ValueError(
+          f'Error: "{file_path}" does not exist or is not a regular file')
     if not file_path.endswith('.py'):
       raise ValueError(f'Error: "{file_path}" is not a Python file')
-    
+
     command = ["python", full_path]
     if args is not None:
       command.extend(args)
 
-    sp_result = subprocess.run(command, cwd=work_dir_abs, capture_output=True, text=True, timeout=30)
+    sp_result = subprocess.run(
+        command, cwd=work_dir_abs, capture_output=True, text=True, timeout=30)
     result = ''
     if sp_result.returncode != 0:
       result += (f"Process exited with code {sp_result.returncode}")
@@ -57,5 +62,3 @@ def run_python_file(work_dir: str, file_path: str, args: list[str] | None = None
       return f"Error: executing Python file: {str(e)}"
     else:
       return f"Error: An unexpected error occurred: {str(e)}"
-
-
