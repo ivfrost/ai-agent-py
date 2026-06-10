@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from prompts import system_prompt
+from config import MAX_ITERATIONS
 from call_function import available_functions, call_function
 load_dotenv()
 
@@ -25,36 +26,37 @@ def main():
         raise RuntimeError("GEMINI_API_KEY is not set")
     
     client = genai.Client(api_key=api_key)
-    response = generate_content(client, messages)
-    usageMeta = response.usage_metadata
-    if not usageMeta:
-        raise RuntimeError("API request failed. Try again later")
-    
-    promptTokens = usageMeta.prompt_token_count
-    responseTokens = usageMeta.candidates_token_count
-    if args.verbose:
-        print("Prompt tokens: " + str(promptTokens)) 
-        print("Response tokens: " + str(responseTokens)) 
-        print()
-        print("User prompt: " + str(args.user_prompt))
-        print()
-    func_results = []
-    if response.function_calls:
-        for func in response.function_calls:
-            function_call_result = call_function(func, args.verbose);
-            if not function_call_result.parts:
-                raise ValueError("Missing .parts list on function_call result")
-            function_response = function_call_result.parts[0].function_response
-            if not function_response:
-                raise ValueError("Missing function_response on parts' first index")
-            if not function_response.response:
-                raise ValueError("Missing result of function call")
-            func_results.append(function_call_result.parts[0])
-            if args.verbose:
-                print(f"-> {function_response.response}")
+    for _ in range(MAX_ITERATIONS or 20):
+        response = generate_content(client, messages)
+        usageMeta = response.usage_metadata
+        if not usageMeta:
+            raise RuntimeError("API request failed. Try again later")
+        
+        promptTokens = usageMeta.prompt_token_count
+        responseTokens = usageMeta.candidates_token_count
+        if args.verbose:
+            print("Prompt tokens: " + str(promptTokens)) 
+            print("Response tokens: " + str(responseTokens)) 
+            print()
+            print("User prompt: " + str(args.user_prompt))
+            print()
+        func_results = []
+        if response.function_calls:
+            for func in response.function_calls:
+                function_call_result = call_function(func, args.verbose);
+                if not function_call_result.parts:
+                    raise ValueError("Missing .parts list on function_call result")
+                function_response = function_call_result.parts[0].function_response
+                if not function_response:
+                    raise ValueError("Missing function_response on parts' first index")
+                if not function_response.response:
+                    raise ValueError("Missing result of function call")
+                func_results.append(function_call_result.parts[0])
+                if args.verbose:
+                    print(f"-> {function_response.response}")
 
-    else:
-        print(response.text)
+        else:
+            print(response.text)
 
 
 if __name__ == "__main__":
