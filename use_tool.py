@@ -10,6 +10,7 @@ available_tools = [
     schema_get_web_search,
     schema_get_web_answer,
     schema_get_web_content,
+    schema_get_user_meta
 ]
 
 tool_map: dict[str, Callable[..., str]] = {
@@ -20,9 +21,10 @@ tool_map: dict[str, Callable[..., str]] = {
     "get_web_search": get_web_search,
     "get_web_answer": get_web_answer,
     "get_web_content": get_web_content,
+    "get_user_meta": get_user_meta
 }
 
-def use_tool(tool_use: ToolUseBlock, verbose: bool = False) -> str:
+def use_tool(work_dir: str, tool_use: ToolUseBlock, verbose: bool = False) -> str:
     if verbose:
         print(f"Calling function: {tool_use.name}({tool_use.input})")
     else:
@@ -36,6 +38,6 @@ def use_tool(tool_use: ToolUseBlock, verbose: bool = False) -> str:
     FILE_TOOLS = {"get_file_content", "get_files_info", "write_file", "run_python_file"}
 
     args = dict(tool_use.input) if tool_use.input else {}
-    if tool_name in FILE_TOOLS:
-        args["work_dir"] = "./calculator"
+    if tool_name not in FILE_TOOLS:
+        args.pop("work_dir", None)
     return tool_map[tool_name](**args)

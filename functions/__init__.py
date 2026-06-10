@@ -5,3 +5,4 @@ from .run_python_file import run_python_file, schema_run_python_file
 from .get_web_search import get_web_search, schema_get_web_search
 from .get_web_answer import get_web_answer, schema_get_web_answer
 from .get_web_content import get_web_content, schema_get_web_content
+from .get_user_meta import get_user_meta, schema_get_user_meta

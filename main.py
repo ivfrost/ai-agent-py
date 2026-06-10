@@ -17,6 +17,7 @@ def generate_content(client, messages):
     return client.messages.create(**config, messages=messages)
 def main():
     parser = argparse.ArgumentParser(description="Chatbot")
+    parser.add_argument("--work-dir", type=str, default=os.getcwd(), help="Define the working directory where the agent can read/write files. Default is the current directory.")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument("user_prompt", type=str, help="User prompt")
     args = parser.parse_args()
@@ -48,7 +49,7 @@ def main():
         if tool_uses:
             tool_results = []
             for tool in tool_uses:
-                result = use_tool(tool, args.verbose);
+                result = use_tool(args.work_dir, tool, args.verbose)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": tool.id,
