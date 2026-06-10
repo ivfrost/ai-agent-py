@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from prompts import system_prompt
-from call_function import available_functions
+from call_function import available_functions, call_function
 load_dotenv()
 
 def generate_content(client, messages):
@@ -38,9 +38,21 @@ def main():
         print()
         print("User prompt: " + str(args.user_prompt))
         print()
+    func_results = []
     if response.function_calls:
         for func in response.function_calls:
-            print(f"Calling function: {func.name}({func.args})\n")
+            function_call_result = call_function(func, args.verbose);
+            if not function_call_result.parts:
+                raise ValueError("Missing .parts list on function_call result")
+            function_response = function_call_result.parts[0].function_response
+            if not function_response:
+                raise ValueError("Missing function_response on parts' first index")
+            if not function_response.response:
+                raise ValueError("Missing result of function call")
+            func_results.append(function_call_result.parts[0])
+            if args.verbose:
+                print(f"-> {function_response.response}")
+
     else:
         print(response.text)
 
